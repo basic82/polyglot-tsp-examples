@@ -81,15 +81,13 @@ class RandomTour [T: Numeric] (
 
 class Hello extends EntryPoint {
   def onModuleLoad() {
-    val result = 0
-/*
+    val result = 
       (for (i <- 0 until 1000) 
 	 yield (new RandomTour[Double](new RingedCities(10), 
 				       new util.Random(i))).distance
        ).min
-*/
     val gr17result =
-      (for (i <- 0 until 1) 
+      (for (i <- 0 until 1000) 
 	 yield (new RandomTour[Int](Gr17, 
 				    new util.Random(i))).distance
        ).min
