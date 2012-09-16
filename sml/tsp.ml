@@ -1,41 +1,25 @@
-fun randomTour rand n = 
+fun arraySwap arr (ix1, ix2) = 
+    let 
+      val elt1 = Array.sub (arr, ix1)
+    in 
+      Array.update (arr, ix1, Array.sub (arr, ix2));
+      Array.update (arr, ix2, elt1)
+    end
+
+fun randomTour rng cities = 
     (* Create array [0..n-1] and shuffle in place by Fisher-Yates'
        method. See http://en.wikipedia.org/wiki/Knuth_shuffle *)
     let
-      val tour = Array.tabulate (n, fn ix => ix)
-      fun swap (ix, ix') =
- 	  let 
-	    val elt = Array.sub (tour, ix)
-	  in 
-	    Array.update (tour, ix, Array.sub (tour, ix'));
-	    Array.update (tour, ix', elt)
-	  end
-      fun randSwap ix = (ix, (Random.randRange (ix, n-1)) rand)
-      val swapSpecs = List.tabulate (n-1, fn ix => randSwap ix)
+      val swaps = cities-1
+      val swapSpecs = 
+	  List.tabulate 
+	      (swaps, fn ix => 
+			 (ix, (Random.randRange (ix, swaps)) rng))
+      and tour = Array.tabulate (cities, fn ix => ix)
     in 
-      List.app swap swapSpecs;
+      List.app (arraySwap tour) swapSpecs;
       tour
     end
-
-(* This implementation is a bit fishy because it modifies the array
-   while traversing it.
-
-fun randomTour rand n = 
-    let 
-	val shuffled = Array.tabulate (n, fn x => x)
-	fun swapSuccessor (ix, elt) = 
-	    let 
-		val ix' = (Random.randRange (ix, n-1)) rand
-		val elt' = Array.sub (shuffled, ix')
-	    in
-		Array.update (shuffled, ix', elt);
-		elt'
-	    end
-    in 
-	Array.modifyi swapSuccessor shuffled;
-	shuffled
-    end
-*)
 
 local 
   val gr17Edges =
@@ -67,7 +51,7 @@ in
       end
 end
 
-fun tourLength lookup tour =
+fun tourDistance lookup tour =
     let
       val (_, total) = 
 	  Array.foldl 
@@ -84,5 +68,68 @@ fun randomSearch lookup cities trials seeds =
       val rng = Random.rand seeds
     in
       List.tabulate 
-	  (trials, fn _ => tourLength lookup (randomTour rng cities))
+	  (trials, fn _ => 
+		      tourDistance lookup (randomTour rng cities))
+    end
+
+fun invertPair rng tour =
+    let 
+      val length = Array.length tour
+      val invertPos = (Random.randRange (0, length-1)) rng
+      and tour' = Array.array (length, 0)
+    in
+      Array.copy {src=tour, dst=tour', di=0};
+      arraySwap tour' (invertPos, (invertPos+1) mod length);
+      tour'
+    end
+
+local
+  fun generate mutate lookup tour =
+      let 
+	val tour' = mutate tour
+      in
+	(tour', tourDistance lookup tour')
+      end
+in
+  fun bestMutant mutate lookup trials tour =
+      let 
+	val allMutants = 
+	    List.tabulate (trials, fn _ => 
+				      generate mutate lookup tour)
+      in
+	List.foldl 
+	    (fn (curr as (_, distance), best as (_, bestDist)) =>
+		if distance<bestDist then curr else best)
+	    (hd allMutants)
+	    (tl allMutants)
+      end
+end
+
+fun test () =
+    let
+      val rng = Random.rand (1,2)
+      val tour = randomTour rng 17
+      val (best, distance) = 
+	  bestMutant (invertPair rng) gr17Lookup 4 tour
+      val showTour = Array.app (fn x => (print (Int.toString x); print " "))
+    in
+      showTour tour;
+      print ":"; 
+      print (Int.toString (tourDistance gr17Lookup tour));
+      print "\n";
+      showTour best; (* answer was verified *)
+      print ":"; 
+      print (Int.toString distance)
+    end
+
+fun hillclimb lookup cities neighbours (* numFailures *) seeds =
+    let
+      val rng = Random.rand seeds
+      val start = randomTour rng cities
+      and lookAround = bestMutant (invertPair rng) lookup neighbours
+      fun climb (here as (_, currDist)) (there as (tour, dist)) =
+	  if dist >= currDist then here
+	  else climb there (lookAround tour)
+    in
+      climb (start, tourDistance lookup start) (lookAround start)
     end
